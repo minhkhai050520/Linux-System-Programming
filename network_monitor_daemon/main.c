@@ -1,0 +1,181 @@
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <linux/netlink.h>
+#include "daemon.h"
+#include "pid_file.h"
+#include "signal_handler.h"
+#include "config.h"
+#include "syslog_logger.h"
+#include "netlink_monitor.h"
+#include "unix_socket.h"
+
+// Global flag for running state
+volatile sig_atomic_t running = 1;
+
+// Function prototypes
+void usage(const char *prog_name);
+void handle_stop();
+void handle_status();
+
+// Main event loop using select() for multiplexing
+static void event_loop(int nl_sock, int server_sock) {
+    fd_set readfds;
+    int max_fd;
+    char buffer[4096];
+
+    syslog_log(LOG_INFO, "Entering main event loop");
+
+    while (running) {
+        FD_ZERO(&readfds);
+        FD_SET(nl_sock, &readfds);
+        FD_SET(server_sock, &readfds);
+
+        max_fd = (nl_sock > server_sock) ? nl_sock : server_sock;
+
+        // Wait for activity on sockets (1 second timeout for signal handling)
+        int activity = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+        if (activity < 0) {
+            if (running) {
+                syslog_log(LOG_ERR, "select() error");
+            }
+            continue;
+        }
+
+        // Handle netlink socket - network events
+        if (FD_ISSET(nl_sock, &readfds)) {
+            struct sockaddr_nl sa;
+            struct iovec iov = {buffer, sizeof(buffer)};
+            struct msghdr msg = {&sa, sizeof(sa), &iov, 1, NULL, 0, 0};
+
+            int len = recvmsg(nl_sock, &msg, 0);
+            if (len > 0) {
+                for (struct nlmsghdr *nlh = (struct nlmsghdr *)buffer; 
+                     NLMSG_OK(nlh, len); 
+                     nlh = NLMSG_NEXT(nlh, len)) {
+                    if (nlh->nlmsg_type == NLMSG_DONE) break;
+                    if (nlh->nlmsg_type == NLMSG_ERROR) continue;
+                    process_netlink_message(nlh);
+                }
+            }
+        }
+
+        // Handle UNIX socket - CLI commands
+        if (FD_ISSET(server_sock, &readfds)) {
+            int client_sock = accept(server_sock, NULL, NULL);
+            if (client_sock >= 0) {
+                handle_client_connection(client_sock);
+            } else if (running) {
+                syslog_log(LOG_ERR, "accept() error");
+            }
+        }
+    }
+
+    syslog_log(LOG_INFO, "Exiting main event loop");
+}
+
+int main(int argc, char *argv[]) {
+    int nl_sock = -1;
+    int server_sock = -1;
+
+    if (argc < 2) {
+        usage(argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (strcmp(argv[1], "start") == 0) {
+        // Daemonize the process
+        if (daemonize() == -1) {
+            fprintf(stderr, "Failed to daemonize\n");
+            return EXIT_FAILURE;
+        }
+
+        // Write PID file
+        if (write_pid_file() == -1) {
+            syslog_log(LOG_ERR, "Failed to write PID file");
+            return EXIT_FAILURE;
+        }
+
+        // Setup signal handlers
+        setup_signal_handlers();
+
+        // Read configuration
+        if (read_config() == -1) {
+            syslog_log(LOG_ERR, "Failed to read configuration");
+            return EXIT_FAILURE;
+        }
+
+        // Initialize syslog
+        init_syslog();
+
+        syslog_log(LOG_INFO, "Network monitor daemon started (PID: %d)", getpid());
+
+        // Initialize netlink socket for network monitoring
+        nl_sock = netlink_socket_init();
+        if (nl_sock == -1) {
+            syslog_log(LOG_ERR, "Failed to initialize netlink socket");
+            return EXIT_FAILURE;
+        }
+
+        // Initialize UNIX domain socket server for CLI
+        server_sock = unix_socket_server_init();
+        if (server_sock == -1) {
+            syslog_log(LOG_ERR, "Failed to initialize UNIX socket server");
+            close(nl_sock);
+            return EXIT_FAILURE;
+        }
+
+        // Main event loop using select() for socket multiplexing
+        event_loop(nl_sock, server_sock);
+
+        // Cleanup
+        close(nl_sock);
+        close(server_sock);
+        unix_socket_cleanup();
+        remove_pid_file();
+        syslog_log(LOG_INFO, "Network monitor daemon stopped");
+        close_syslog();
+
+    } else if (strcmp(argv[1], "stop") == 0) {
+        handle_stop();
+    } else if (strcmp(argv[1], "status") == 0) {
+        handle_status();
+    } else {
+        usage(argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+void usage(const char *prog_name) {
+    printf("Usage: %s {start|stop|status}\n", prog_name);
+}
+
+void handle_stop() {
+    pid_t pid = read_pid_file();
+    if (pid == -1) {
+        printf("Daemon is not running\n");
+        return;
+    }
+    if (kill(pid, SIGTERM) == -1) {
+        perror("Failed to send SIGTERM");
+    } else {
+        printf("Stop signal sent to daemon (PID: %d)\n", pid);
+    }
+}
+
+void handle_status() {
+    pid_t pid = read_pid_file();
+    if (pid == -1) {
+        printf("Daemon is not running\n");
+    } else {
+        printf("Daemon is running (PID: %d)\n", pid);
+    }
+}
