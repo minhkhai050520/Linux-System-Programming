@@ -4,13 +4,13 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-// Function to write PID to file
+/* Function to write PID to file */
 int write_pid_file(void);
 
-// Function to read PID from file
+/* Function to read PID from file */
 pid_t read_pid_file(void);
 
-// Function to remove PID file
+/* Function to remove PID file */
 void remove_pid_file(void);
 
-#endif // PID_FILE_H
+#endif /* PID_FILE_H */

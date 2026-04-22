@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "daemon.h"
+#include "syslog_logger.h"
 
 /**
  * daemonize - Transform the calling process into a background daemon.
@@ -39,6 +40,7 @@ int daemonize(int flags)
     switch((pid = fork()))
     {
         case -1:
+            syslog_log(LOG_ERR, "Failed to fork\n");
             return -1; /* fork failed */
         case 0:
             break; /* Child falls through */
@@ -48,12 +50,15 @@ int daemonize(int flags)
 
     /* Child becomes session leader */
     if (setsid() < 0)
+    {
+        syslog_log(LOG_ERR, "Failed to create new session\n");
         return -1;
-
+    }
     /* Ensure we are not session leader */
     switch((pid = fork()))
     {
         case -1:
+            syslog_log(LOG_ERR, "Failed to fork\n");
             return -1;
         case 0:
             break;
@@ -62,13 +67,19 @@ int daemonize(int flags)
     }
 
     if (!(flags & BD_NO_UMASK0))
+    {
+        syslog_log(LOG_INFO, "Resetting file mode creation mask to 0\n");
         umask(0);
-
+    }
     if (!(flags & BD_NO_CHDIR))
+    {
+        syslog_log(LOG_INFO, "Changing working directory to the root\n");
         chdir("/");
+    }
 
     if (!(flags & BD_NO_CLOSE_FILES))
     {
+        syslog_log(LOG_INFO, "Closing all open file descriptors\n");
         maxfd = sysconf(_SC_OPEN_MAX);
         if (maxfd == -1)
             maxfd = BD_MAX_CLOSE;
@@ -79,16 +90,26 @@ int daemonize(int flags)
 
     if (!(flags & BD_NO_REOPEN_STD_FDS))
     {
+        syslog_log(LOG_INFO, "Redirecting stdin, stdout, stderr to /dev/null\n");
         close(STDIN_FILENO);
 
         fd = open("/dev/null", O_RDWR);
 
         if (fd != STDIN_FILENO)
+        {
+            syslog_log(LOG_ERR, "Unexpected file descriptor %d for /dev/null\n", fd);
             return -1;
+        }
         if (dup2(STDIN_FILENO, STDOUT_FILENO) != STDOUT_FILENO)
+        {
+            syslog_log(LOG_ERR, "Failed to duplicate stdin to stdout\n");
             return -1;
+        }
         if (dup2(STDIN_FILENO, STDERR_FILENO) != STDERR_FILENO)
+        {
+            syslog_log(LOG_ERR, "Failed to duplicate stdin to stderr\n");
             return -1;
+        }
     }
     return 0;
 }

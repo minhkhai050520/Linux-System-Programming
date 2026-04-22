@@ -1,7 +1,7 @@
-#define _GNU_SOURCE
 #include <syslog.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include "syslog_logger.h"
 #include "config.h"
 

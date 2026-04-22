@@ -5,13 +5,16 @@
 #include <errno.h>
 #include <string.h>
 #include "pid_file.h"
+#include "syslog_logger.h"
+#include "config.h"
 
-#define PID_FILE "/tmp/network_monitor_daemon.pid"
-
-// Write the current process PID to the PID file
-int write_pid_file(void) {
-    FILE *fp = fopen(PID_FILE, "w");
-    if (fp == NULL) {
+/* Write the current process PID to the PID file */
+int write_pid_file(void)
+{
+    FILE *fp = fopen(config.pid_file, "w");
+    if (fp == NULL)
+    {
+        syslog_log(LOG_ERR, "Failed to open PID file for writing: %s", strerror(errno));
         return -1;
     }
     fprintf(fp, "%d\n", getpid());
@@ -19,14 +22,19 @@ int write_pid_file(void) {
     return 0;
 }
 
-// Read the PID from the PID file
-pid_t read_pid_file(void) {
-    FILE *fp = fopen(PID_FILE, "r");
-    if (fp == NULL) {
+/* Read the PID from the PID file */
+pid_t read_pid_file(void)
+{
+    FILE *fp = fopen(config.pid_file, "r");
+    if (fp == NULL)
+    {
+        syslog_log(LOG_ERR, "Failed to open PID file for reading: %s", strerror(errno));
         return -1;
     }
     pid_t pid;
-    if (fscanf(fp, "%d", &pid) != 1) {
+    if (fscanf(fp, "%d", &pid) != 1)
+    {
+        syslog_log(LOG_ERR, "Failed to read PID from file: %s", strerror(errno));
         fclose(fp);
         return -1;
     }
@@ -34,7 +42,10 @@ pid_t read_pid_file(void) {
     return pid;
 }
 
-// Remove the PID file
-void remove_pid_file(void) {
-    unlink(PID_FILE);
+/* Remove the PID file */
+void remove_pid_file(void)
+{
+    if (unlink(config.pid_file) != 0)
+        if (errno != ENOENT)
+            syslog_log(LOG_ERR, "Failed to remove PID file: %s", strerror(errno));
 }

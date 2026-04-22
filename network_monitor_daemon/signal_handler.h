@@ -2,7 +2,7 @@
 #define SIGNAL_HANDLER_H
 
 // Function to setup signal handlers
-void setup_signal_handlers(void);
+int setup_signal_handlers(void);
 
 // Signal handler for SIGTERM
 void sigterm_handler(int sig);

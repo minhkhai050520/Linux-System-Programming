@@ -2,11 +2,13 @@
 #define CONFIG_H
 
 #define SOCKET_PATH "/run/network_monitor_app/network_monitor.sock"
+#define PID_FILE "/run/network_monitor_app/network_monitor_daemon.pid"
 #define LOG_IDENT "network_monitor_daemon"
 
 /* Configuration structure */
 typedef struct {
-    char socket_path[256];
+    char socket_path[100];
+    char pid_file[256];
     char log_ident[256];
 } Config;
 
