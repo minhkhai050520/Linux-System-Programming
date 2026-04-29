@@ -21,8 +21,6 @@
 volatile sig_atomic_t running = 1;
 
 void usage(const char *prog_name);
-void handle_stop();
-void handle_status();
 
 /* Main event loop using select() for multiplexing */
 static int event_loop(int nl_sock, int server_sock)
@@ -92,7 +90,13 @@ static int event_loop(int nl_sock, int server_sock)
             {
                 if (nlh->nlmsg_type == NLMSG_DONE) break;
                 if (nlh->nlmsg_type == NLMSG_ERROR) continue;
-                process_netlink_message(nlh);
+                int err = process_netlink_message(nlh);
+
+                if (err < 0)
+                {
+                    syslog_log(LOG_ERR, "Error processing netlink message");
+                    return -1;
+                }
             }
         }
 
@@ -102,7 +106,10 @@ static int event_loop(int nl_sock, int server_sock)
             int client_sock = accept(server_sock, NULL, NULL);
             if (client_sock >= 0)
             {
-                handle_client_connection(client_sock);
+                if(handle_client_connection(client_sock) == -1)
+                {
+                    syslog_log(LOG_ERR, "Error handling client connection");
+                }
             }
             else if (running)
             {
@@ -184,49 +191,17 @@ int main(int argc, char *argv[])
         close(server_sock);
         unix_socket_cleanup();
         remove_pid_file();
-        syslog_log(LOG_INFO, "Network monitor daemon stopped");
-        close_syslog();
-    }
-    else if (strcmp(argv[1], "stop") == 0)
-    {
-        handle_stop();
-    }
-    else if (strcmp(argv[1], "status") == 0)
-    {
-        handle_status();
     }
     else
     {
         usage(argv[0]);
-        return EXIT_FAILURE;
     }
 
+    close_syslog();
     return EXIT_SUCCESS;
 }
 
 void usage(const char *prog_name)
 {
-    printf("Usage: %s {start|stop|status}\n", prog_name);
-}
-
-void handle_stop()
-{
-    pid_t pid = read_pid_file();
-    if (pid == -1)
-    {
-        printf("Daemon is not running\n");
-        return;
-    }
-    if (kill(pid, SIGTERM) == -1)
-        perror("Failed to send SIGTERM");
-    else
-        printf("Stop signal sent to daemon (PID: %d)\n", pid);
-}
-
-void handle_status() {
-    pid_t pid = read_pid_file();
-    if (pid == -1)
-        printf("Daemon is not running\n");
-    else
-        printf("Daemon is running (PID: %d)\n", pid);
+    printf("Usage: %s {start}\n", prog_name);
 }

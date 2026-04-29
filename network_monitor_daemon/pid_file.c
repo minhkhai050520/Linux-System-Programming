@@ -4,13 +4,44 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "pid_file.h"
 #include "syslog_logger.h"
 #include "config.h"
 
+int ensure_dir(const char *path)
+{
+    char tmp[256];
+    char *p;
+
+    snprintf(tmp, sizeof(tmp), "%s", path);
+
+    for (p = tmp + 1; *p; p++)
+    {
+        if (*p == '/')
+        {
+            *p = '\0';
+            if (mkdir(tmp, 0755) != 0 && errno != EEXIST)
+            {
+                syslog_log(LOG_ERR, "Failed to create directory for PID file: %s", strerror(errno));
+                return -1;
+            }
+            *p = '/';
+        }
+    }
+
+    return 0;
+}
+
 /* Write the current process PID to the PID file */
 int write_pid_file(void)
 {
+    if (ensure_dir(config.pid_file) == -1)
+    {
+        syslog_log(LOG_ERR, "Failed to ensure directory for PID file exists");
+        return -1;
+    }
+
     FILE *fp = fopen(config.pid_file, "w");
     if (fp == NULL)
     {

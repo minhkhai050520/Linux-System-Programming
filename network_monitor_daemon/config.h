@@ -6,7 +6,8 @@
 #define LOG_IDENT "network_monitor_daemon"
 
 /* Configuration structure */
-typedef struct {
+typedef struct
+{
     char socket_path[100];
     char pid_file[256];
     char log_ident[256];

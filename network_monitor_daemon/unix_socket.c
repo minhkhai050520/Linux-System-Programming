@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,12 +6,14 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
+#include <signal.h>
 #include "unix_socket.h"
 #include "config.h"
 #include "syslog_logger.h"
+#include "pid_file.h"
 
 /* Handle client commands and send responses */
-void handle_client_connection(int client_sock)
+int handle_client_connection(int client_sock)
 {
     char buffer[256] = {0};
     ssize_t n;
@@ -21,13 +24,43 @@ void handle_client_connection(int client_sock)
         buffer[n] = '\0';
         if (strcmp(buffer, "status\n") == 0)
         {
-            write(client_sock, "Daemon is running\n", 18);
             syslog_log(LOG_DEBUG, "Client requested status");
+            pid_t pid = read_pid_file();
+            if (pid == -1)
+            {
+                write(client_sock, "Daemon is not running\n", 22);
+                close(client_sock);
+                return -1;
+            }
+            else
+            {
+                write(client_sock, "Daemon is running\n", 18);
+            }
         }
         else if (strcmp(buffer, "stop\n") == 0)
         {
-            write(client_sock, "Stopping daemon\n", 16);
-            syslog_log(LOG_INFO, "Client requested daemon stop");
+            // write(client_sock, "Stopping daemon\n", 16);
+            syslog_log(LOG_INFO, "Client requested monitor daemon stop");
+            pid_t pid = read_pid_file();
+            if (pid == -1)
+            {
+                write(client_sock, "Daemon is not running\n", 22);
+                syslog_log(LOG_WARNING, "Stop command received but daemon is not running");
+                close(client_sock);
+                return -1;
+            }
+            if (kill(pid, SIGTERM) == -1)
+            {
+                write(client_sock, "Failed to send stop signal\n", 26);
+                syslog_log(LOG_ERR, "Failed to send stop signal to daemon (PID: %d)", pid);
+                close(client_sock);
+                return -1;
+            }
+            else
+            {
+                    write(client_sock, "Stop signal sent to daemon\n", 27);
+                    syslog_log(LOG_INFO, "Stop signal sent to daemon (PID: %d)", pid);
+            }
         }
         else
         {
@@ -36,10 +69,12 @@ void handle_client_connection(int client_sock)
         }
     }
     close(client_sock);
+    return 0;
 }
 
 /* Create and bind UNIX domain socket server */
-int unix_socket_server_init(void) {
+int unix_socket_server_init(void)
+{
     struct sockaddr_un sa;
     int server_sock;
 

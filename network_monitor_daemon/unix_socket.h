@@ -6,7 +6,7 @@
 int unix_socket_server_init(void);
 
 /* Handle client connection on UNIX socket */
-void handle_client_connection(int client_sock);
+int handle_client_connection(int client_sock);
 
 /* Cleanup UNIX socket */
 void unix_socket_cleanup(void);

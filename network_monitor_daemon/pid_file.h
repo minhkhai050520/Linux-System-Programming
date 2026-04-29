@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 
+/* Function to ensure directory of the full path exists */
+int ensure_dir(const char *path);
+
 /* Function to write PID to file */
 int write_pid_file(void);
 
