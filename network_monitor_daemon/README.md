@@ -50,17 +50,22 @@ make clean && make
 
 ## Usage
 - Start the daemon: `sudo ./network_monitor_daemon start`
-- Check status: `./network_monitor_daemon status`
-- Stop the daemon: `./network_monitor_daemon stop`
+- Check status: `echo "status" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.sock`
+- Stop the daemon: `echo "stop" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.sock`
+- Reload config: `echo "reload" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.sock`
+
+> Note: The daemon executable currently accepts only `start` as a command-line argument.
+> Status, stop, and reload are handled through the UNIX domain socket CLI.
 
 ## CLI Commands
-Connect to the UNIX socket at `/tmp/network_monitor.sock` and send:
+Connect to the UNIX socket at `/run/network_monitor_app/network_monitor.sock` and send:
 - `status` - Get daemon status
 - `stop` - Stop the daemon
+- `reload` - Reload configuration
 
 Example:
 ```bash
-echo "status" | socat - UNIX-CONNECT:/tmp/network_monitor.sock
+echo "status" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.sock
 ```
 
 ## Modules

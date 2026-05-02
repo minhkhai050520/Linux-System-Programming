@@ -13,9 +13,8 @@
 #include "netlink_monitor.h"
 #include "syslog_logger.h"
 
-/* =========================
+/*
  * HANDLE LINK EVENT
- * =========================
  */
 int handle_link(struct nlmsghdr *nlh)
 {
@@ -62,9 +61,8 @@ int handle_link(struct nlmsghdr *nlh)
     return 0;
 }
 
-/* =========================
+/*
  * HANDLE ADDRESS EVENT
- * =========================
  */
 int handle_addr(struct nlmsghdr *nlh)
 {

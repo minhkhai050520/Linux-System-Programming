@@ -149,21 +149,21 @@ int main(int argc, char *argv[])
         if (daemonize(0) == -1)
         {
             syslog_log(LOG_ERR, "Failed to daemonize\n");
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
 
         /* Write PID file */
         if (write_pid_file() == -1)
         {
             syslog_log(LOG_ERR, "Failed to write PID file");
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
 
         /* Setup signal handlers */
         if (setup_signal_handlers() == -1)
         {
             syslog_log(LOG_ERR, "Failed to setup signal handlers");
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
 
         /* Initialize netlink socket for network monitoring */
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         if (nl_sock == -1)
         {
             syslog_log(LOG_ERR, "Failed to initialize netlink socket");
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
 
         /* Initialize UNIX domain socket server for CLI */
@@ -179,12 +179,15 @@ int main(int argc, char *argv[])
         if (server_sock == -1)
         {
             syslog_log(LOG_ERR, "Failed to initialize UNIX socket server");
-            close(nl_sock);
-            return EXIT_FAILURE;
+            goto error_cleanup;
         }
 
         /* Main event loop using select() for socket multiplexing */
-        event_loop(nl_sock, server_sock);
+        if (event_loop(nl_sock, server_sock) == -1)
+        {
+            syslog_log(LOG_ERR, "Error in event loop");
+            goto error_cleanup;
+        }
 
         /* Cleanup */
         close(nl_sock);
@@ -199,6 +202,16 @@ int main(int argc, char *argv[])
 
     close_syslog();
     return EXIT_SUCCESS;
+
+error_cleanup:
+    if (nl_sock != -1)
+        close(nl_sock);
+    if (server_sock != -1)
+        close(server_sock);
+    unix_socket_cleanup();
+    remove_pid_file();
+    close_syslog();
+    return EXIT_FAILURE;
 }
 
 void usage(const char *prog_name)

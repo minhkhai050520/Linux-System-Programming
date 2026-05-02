@@ -62,6 +62,30 @@ int handle_client_connection(int client_sock)
                     syslog_log(LOG_INFO, "Stop signal sent to daemon (PID: %d)", pid);
             }
         }
+        else if (strcmp(buffer, "reload\n") == 0)
+        {
+            syslog_log(LOG_INFO, "Client requested monitor daemon configuration reload");
+            pid_t pid = read_pid_file();
+            if (pid == -1)
+            {
+                write(client_sock, "Daemon is not running\n", 22);
+                syslog_log(LOG_WARNING, "Reload command received but daemon is not running");
+                close(client_sock);
+                return -1;
+            }
+            if (kill(pid, SIGHUP) == -1)
+            {
+                write(client_sock, "Failed to send reload signal\n", 28);
+                syslog_log(LOG_ERR, "Failed to send reload signal to daemon (PID: %d)", pid);
+                close(client_sock);
+                return -1;
+            }
+            else
+            {
+                write(client_sock, "Reload signal sent to daemon\n", 29);
+                syslog_log(LOG_INFO, "Reload signal sent to daemon (PID: %d)", pid);
+            }
+        }
         else
         {
             write(client_sock, "Unknown command\n", 16);
