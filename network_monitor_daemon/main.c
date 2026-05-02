@@ -20,6 +20,9 @@
 /* Global flag for running state */
 volatile sig_atomic_t running = 1;
 
+/* Global flag for config reload */
+volatile sig_atomic_t reload_config_flag = 0;
+
 void usage(const char *prog_name);
 
 /* Main event loop using select() for multiplexing */
@@ -39,7 +42,7 @@ static int event_loop(int nl_sock, int server_sock)
 
         max_fd = (nl_sock > server_sock) ? nl_sock : server_sock;
 
-        /* Wait for activity on sockets (1 second timeout for signal handling) */
+        /* Wait for activity on sockets */
         int activity = select(max_fd + 1, &readfds, NULL, NULL, NULL);
         if (activity < 0)
         {
@@ -114,6 +117,20 @@ static int event_loop(int nl_sock, int server_sock)
             else if (running)
             {
                 syslog_log(LOG_ERR, "accept() error");
+            }
+        }
+
+        /* Check for config reload signal */
+        if (reload_config_flag)
+        {
+            reload_config_flag = 0; /* Reset flag */
+            if (read_config() == -1)
+            {
+                syslog_log(LOG_ERR, "Failed to reload configuration");
+            }
+            else
+            {
+                syslog_log(LOG_INFO, "Configuration reloaded");
             }
         }
     }

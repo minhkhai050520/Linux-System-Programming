@@ -6,9 +6,6 @@
 #include "config.h"
 #include "syslog_logger.h"
 
-/* Extern declaration for the running flag */
-extern volatile sig_atomic_t running;
-
 /* Setup signal handlers for SIGTERM and SIGHUP */
 int setup_signal_handlers(void)
 {
@@ -40,7 +37,6 @@ int setup_signal_handlers(void)
 void sigterm_handler(int sig)
 {
     (void)sig; /* Suppress unused parameter warning */
-    syslog_log(LOG_INFO, "Received SIGTERM, shutting down");
     running = 0;
 }
 
@@ -48,9 +44,5 @@ void sigterm_handler(int sig)
 void sighup_handler(int sig)
 {
     (void)sig; /* Suppress unused parameter warning */
-    syslog_log(LOG_INFO, "Received SIGHUP, reloading configuration");
-    if (read_config() == -1)
-        syslog_log(LOG_ERR, "Failed to reload configuration");
-    else
-        syslog_log(LOG_INFO, "Configuration reloaded");
+    reload_config_flag = 1;
 }
