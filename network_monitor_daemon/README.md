@@ -83,4 +83,3 @@ echo "status" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.so
 - PID file: `/tmp/network_monitor_daemon.pid`
 - Socket file: `/tmp/network_monitor.sock`
 - Single-threaded design improves reliability and simplifies debugging
-- No race conditions or synchronization issues
