@@ -13,7 +13,7 @@ A Linux daemon that monitors network interface events (UP/DOWN, IP changes) usin
 - CLI interface via UNIX domain socket for commands like status and stop
 - **Single-threaded event-driven architecture using select() for socket multiplexing**
 
-## TLPI Topics Covered
+## Topics Covered
 - Process creation & daemonization (fork, setsid)
 - File I/O (PID file, config)
 - Signals (SIGTERM for stop, SIGHUP for reload config)
