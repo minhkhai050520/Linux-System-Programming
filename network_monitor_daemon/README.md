@@ -80,6 +80,6 @@ echo "status" | socat - UNIX-CONNECT:/run/network_monitor_app/network_monitor.so
 
 ## Notes
 - Requires root privileges for Netlink monitoring
-- PID file: `/tmp/network_monitor_daemon.pid`
-- Socket file: `/tmp/network_monitor.sock`
+- PID file: `/run/network_monitor_app/network_monitor_daemon.pid`
+- Socket file: `/run/network_monitor_app/network_monitor.sock`
 - Single-threaded design improves reliability and simplifies debugging
